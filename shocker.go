@@ -18,11 +18,10 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "woop")
 }
 
-func unzip(filename string) (err error) {
-	dirname, err := ioutil.TempDir(WORK_DIR, "uploaded")
+func unzip(filename string) (dirname string, err error) {
+	dirname, err = ioutil.TempDir(WORK_DIR, "uploaded")
 	if err != nil {
-		fmt.Println("could not create directory to receive")
-		return err
+		return
 	}
 
 	r, err := zip.OpenReader(filename)
@@ -32,38 +31,32 @@ func unzip(filename string) (err error) {
 	defer r.Close()
 
 	for _, f := range r.File {
-		fmt.Println("expanding", f.Name)
-		if f.FileInfo().IsDir() {
-			// Directory.
-			fmt.Println("is directory")
-
-		} else {
+		if !f.FileInfo().IsDir() {
 			// Ordinary file.
 			outpath := path.Join(dirname, f.Name)
-			fmt.Println("into", outpath)
 
 			// Create enclosing directories.
 			err = os.MkdirAll(path.Dir(outpath), os.ModeDir|os.ModePerm)
 			if err != nil {
-				log.Fatal(err)
+				return
 			}
 
 			// Open the file from the zip archive.
 			rc, err := f.Open()
 			if err != nil {
-				log.Fatal(err)
+				return dirname, err
 			}
 
 			// Create the file on disk.
 			out, err := os.Create(outpath)
 			if err != nil {
-				log.Fatal(err)
+				return dirname, err
 			}
 
 			// Copy the data to disk.
 			_, err = io.Copy(out, rc)
 			if err != nil {
-				log.Fatal(err)
+				return dirname, err
 			}
 
 			rc.Close()
@@ -71,7 +64,7 @@ func unzip(filename string) (err error) {
 		}
 	}
 
-	return nil
+	return
 }
 
 func receiveFile(r *http.Request, name string) (filename string, err error) {
@@ -100,12 +93,19 @@ func handleApp(w http.ResponseWriter, r *http.Request) {
 		filename, err := receiveFile(r, "file")
 		if err != nil {
 			fmt.Fprintln(w, "could not get file from form")
+			return
+		}
+
+		// Clean up the zip file after we've unzipped it.
+		defer os.Remove(filename)
+
+		dirname, err := unzip(filename)
+		if err != nil {
+			fmt.Fprintln(w, "could not unzip archive")
 		}
 
 		vars := mux.Vars(r)
-		fmt.Println("got file for", vars["name"])
-
-		unzip(filename)
+		fmt.Println("got archive for", vars["name"], "at", dirname)
 
 		fmt.Fprintln(w, "success")
 	} else {
