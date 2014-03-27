@@ -1,17 +1,77 @@
 package main
 
 import (
+	"archive/zip"
 	"fmt"
 	"github.com/gorilla/mux"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
+	"os"
+	"path"
 )
 
 var WORK_DIR = "."
 
 func handleHome(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "woop")
+}
+
+func unzip(filename string) (err error) {
+	dirname, err := ioutil.TempDir(WORK_DIR, "uploaded")
+	if err != nil {
+		fmt.Println("could not create directory to receive")
+		return err
+	}
+
+	r, err := zip.OpenReader(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer r.Close()
+
+	for _, f := range r.File {
+		fmt.Println("expanding", f.Name)
+		if f.FileInfo().IsDir() {
+			// Directory.
+			fmt.Println("is directory")
+
+		} else {
+			// Ordinary file.
+			outpath := path.Join(dirname, f.Name)
+			fmt.Println("into", outpath)
+
+			// Create enclosing directories.
+			err = os.MkdirAll(path.Dir(outpath), os.ModeDir|os.ModePerm)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			// Open the file from the zip archive.
+			rc, err := f.Open()
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			// Create the file on disk.
+			out, err := os.Create(outpath)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			// Copy the data to disk.
+			_, err = io.Copy(out, rc)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			rc.Close()
+			out.Close()
+		}
+	}
+
+	return nil
 }
 
 func handleApp(w http.ResponseWriter, r *http.Request) {
@@ -38,6 +98,10 @@ func handleApp(w http.ResponseWriter, r *http.Request) {
 			fmt.Println(w, "could not copy file")
 			return
 		}
+
+		// TODO close file before trying to unzip it
+
+		unzip(out.Name())
 
 		fmt.Fprintln(w, "success")
 	} else {
