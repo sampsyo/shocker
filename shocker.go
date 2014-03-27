@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/gorilla/mux"
 	"io"
 	"net/http"
 	"os"
@@ -19,7 +20,9 @@ func handleApp(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer file.Close()
-		fmt.Println("got file", header.Filename)
+
+		vars := mux.Vars(r)
+		fmt.Println("got file", header.Filename, "for", vars["name"])
 
 		out, err := os.Create("gotfile")
 		if err != nil {
@@ -41,9 +44,11 @@ func handleApp(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/app", handleApp)
-	http.HandleFunc("/", handleHome)
+	r := mux.NewRouter()
+	r.HandleFunc("/apps/{name}", handleApp)
+	r.HandleFunc("/", handleHome)
 
 	fmt.Println("http://0.0.0.0:8080")
+	http.Handle("/", r)
 	http.ListenAndServe(":8080", nil)
 }
