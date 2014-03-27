@@ -74,34 +74,38 @@ func unzip(filename string) (err error) {
 	return nil
 }
 
+func receiveFile(r *http.Request, name string) (filename string, err error) {
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	out, err := ioutil.TempFile(WORK_DIR, "uploaded")
+	if err != nil {
+		return "", err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, file)
+	if err != nil {
+		return out.Name(), err
+	}
+
+	return out.Name(), nil
+}
+
 func handleApp(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
-		file, header, err := r.FormFile("file")
+		filename, err := receiveFile(r, "file")
 		if err != nil {
 			fmt.Fprintln(w, "could not get file from form")
-			return
 		}
-		defer file.Close()
 
 		vars := mux.Vars(r)
-		fmt.Println("got file", header.Filename, "for", vars["name"])
+		fmt.Println("got file for", vars["name"])
 
-		out, err := ioutil.TempFile(WORK_DIR, "uploaded")
-		if err != nil {
-			fmt.Fprintln(w, "could not open file to save")
-			return
-		}
-		defer out.Close()
-
-		_, err = io.Copy(out, file)
-		if err != nil {
-			fmt.Println(w, "could not copy file")
-			return
-		}
-
-		// TODO close file before trying to unzip it
-
-		unzip(out.Name())
+		unzip(filename)
 
 		fmt.Fprintln(w, "success")
 	} else {
