@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"io"
+	"io/ioutil"
 	"net/http"
-	"os"
 )
+
+var WORK_DIR = "."
 
 func handleHome(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "woop")
@@ -24,7 +26,7 @@ func handleApp(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		fmt.Println("got file", header.Filename, "for", vars["name"])
 
-		out, err := os.Create("gotfile")
+		out, err := ioutil.TempFile(WORK_DIR, "uploaded")
 		if err != nil {
 			fmt.Fprintln(w, "could not open file to save")
 			return
